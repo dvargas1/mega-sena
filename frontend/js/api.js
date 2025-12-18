@@ -1,8 +1,12 @@
 /**
  * API Client - Wrapper for all backend API calls
+ * Rota B: frontend chama /api/* na Vercel, que faz proxy para o backend
  */
 
-const API_BASE_URL = window.APP_CONFIG?.API_URL || window.location.origin;
+// Base URL:
+// - Se existir API_URL no config, usa
+// - Senão, usa a própria origem (Vercel)
+const API_BASE_URL = window.APP_CONFIG?.API_URL ?? window.location.origin;
 
 class APIClient {
   constructor() {
@@ -10,19 +14,16 @@ class APIClient {
   }
 
   /**
-   * Make an API request
-   * @param {string} endpoint - API endpoint (e.g., '/api/auth/login')
-   * @param {object} options - Fetch options
-   * @returns {Promise<object>} Response data
+   * Método genérico de request
    */
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
 
     const defaultOptions = {
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
-      credentials: 'include', // Include cookies for session management
+      credentials: 'include'
     };
 
     const config = { ...defaultOptions, ...options };
@@ -31,137 +32,133 @@ class APIClient {
       config.body = JSON.stringify(config.body);
     }
 
+    const response = await fetch(url, config);
+    const text = await response.text();
+
+    let data;
     try {
-const response = await fetch(url, config);
-const text = await response.text();
-
-let data;
-try {
-  data = JSON.parse(text);
-} catch (e) {
-  console.error('Resposta não JSON:', text);
-  throw new Error('Resposta inválida do servidor');
-}
-
-      if (!response.ok) {
-        throw new Error(data.error || `HTTP error ${response.status}`);
-      }
-
-      return data;
-    } catch (error) {
-      console.error(`API request failed: ${endpoint}`, error);
-      throw error;
+      data = text ? JSON.parse(text) : {};
+    } catch (e) {
+      console.error('Resposta não JSON:', text);
+      throw new Error('Resposta inválida do servidor');
     }
+
+    if (!response.ok) {
+      throw new Error(data.error || `HTTP ${response.status}`);
+    }
+
+    return data;
   }
 
-  /**
- * GET request
-   */
-  async get(endpoint) {
+  // ===== HTTP helpers =====
+
+  get(endpoint) {
     return this.request(endpoint, { method: 'GET' });
   }
 
-  /**
-   * POST request
-   */
-  async post(endpoint, data = {}) {
+  post(endpoint, data = {}) {
     return this.request(endpoint, {
       method: 'POST',
-      body: data,
+      body: data
     });
   }
 
-  /**
-   * PUT request
-   */
-  async put(endpoint, data = {}) {
+  put(endpoint, data = {}) {
     return this.request(endpoint, {
       method: 'PUT',
-      body: data,
+      body: data
     });
   }
 
-  /**
-   * DELETE request
-   */
-  async delete(endpoint) {
+  delete(endpoint) {
     return this.request(endpoint, { method: 'DELETE' });
   }
 
-  // Auth endpoints
-  async register(name, pixKey) {
-    return this.post('/api/auth/register', { name, pixKey });
+  // ===== AUTH =====
+
+  register(name, pixKey) {
+    return this.post('/api/auth/register', {
+      name,
+      pix_key: pixKey
+    });
   }
 
-  async login(name, pixKey) {
-    return this.post('/api/auth/login', { name, pixKey });
+  login(name, pixKey) {
+    return this.post('/api/auth/login', {
+      name,
+      pix_key: pixKey
+    });
   }
 
-  async logout() {
+  logout() {
     return this.post('/api/auth/logout');
   }
 
-  async getCurrentUser() {
+  getCurrentUser() {
     return this.get('/api/auth/me');
   }
 
-  // Payment endpoints
-  async joinBolao(quotaQuantity = 1) {
+  // ===== PAYMENTS =====
+
+  joinBolao(quotaQuantity = 1) {
     return this.post('/api/payments/join', { quotaQuantity });
   }
 
-  async claimPaid() {
+  claimPaid() {
     return this.post('/api/payments/claim-paid');
   }
 
-  async getPaymentStatus() {
+  getPaymentStatus() {
     return this.get('/api/payments/status');
   }
 
-  // Number endpoints
-  async getScores(recalculate = false) {
+  // ===== NUMBERS =====
+
+  getScores(recalculate = false) {
     const query = recalculate ? '?recalculate=true' : '';
     return this.get(`/api/numbers/scores${query}`);
   }
 
-  async selectNumbers(numbers) {
+  selectNumbers(numbers) {
     return this.post('/api/numbers/select', { numbers });
   }
 
-  async getMySelections() {
+  getMySelections() {
     return this.get('/api/numbers/my-selections');
   }
 
-  async generateNumbers() {
+  generateNumbers() {
     return this.get('/api/numbers/generate');
   }
 
-  // Admin endpoints
-  async getParticipants() {
+  // ===== ADMIN =====
+
+  getParticipants() {
     return this.get('/api/admin/participants');
   }
 
-  async confirmPayment(participationId) {
+  confirmPayment(participationId) {
     return this.post('/api/admin/confirm-payment', { participationId });
   }
 
-  async getTotals() {
+  getTotals() {
     return this.get('/api/admin/totals');
   }
 
-  async closeBolao() {
+  closeBolao() {
     return this.post('/api/admin/close-bolao');
   }
 
-  // Bolao endpoints
-  async getBolaoInfo() {
+  // ===== BOLÃO =====
+
+  getBolaoInfo() {
     return this.get('/api/bolao/info');
   }
 
-  async getClosureInfo() {
+  getClosureInfo() {
     return this.get('/api/bolao/closure');
   }
 }
 
-// Create global API instance
-const api = new APIClient();
+// 🌍 Instância global
+window.api = new APIClient();
