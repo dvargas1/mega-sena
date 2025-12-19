@@ -152,6 +152,10 @@ async register(name, pixKey) {
     return this.get('/api/bolao/info');
   }
 
+  getBolaoParticipants() {
+    return this.get('/api/bolao/participants');
+  }
+
   getClosureInfo() {
     return this.get('/api/bolao/closure');
   }

@@ -82,6 +82,69 @@ router.get('/info', async (req, res) => {
 });
 
 /**
+ * GET /api/bolao/participants
+ * Get list of all participants (public endpoint)
+ */
+router.get('/participants', async (req, res) => {
+  try {
+    // Get active bolão
+    const { data: bolao, error: bolaoError } = await supabase
+      .from('bolao')
+      .select('id, quota_value')
+      .eq('status', CONFIG.BOLAO_STATUS.OPEN)
+      .single();
+
+    if (bolaoError || !bolao) {
+      return res.status(404).json({
+        success: false,
+        error: 'Nenhum bolão aberto encontrado'
+      });
+    }
+
+    // Get all participations with user info and selection count
+    const { data: participations, error: partError } = await supabase
+      .from('participations')
+      .select(`
+        id,
+        quota_quantity,
+        payment_status,
+        created_at,
+        users!participations_user_id_fkey(id, name),
+        number_selections(number)
+      `)
+      .eq('bolao_id', bolao.id)
+      .order('created_at', { ascending: true });
+
+    if (partError) throw partError;
+
+    const quotaValue = parseFloat(bolao.quota_value) || 10;
+
+    // Transform data (without sensitive info like payment confirmation dates)
+    const participants = participations.map(p => ({
+      participationId: p.id,
+      name: p.users.name,
+      quotaQuantity: p.quota_quantity || 1,
+      totalAmount: (p.quota_quantity || 1) * quotaValue,
+      paymentStatus: p.payment_status,
+      joinedAt: p.created_at,
+      selectedNumbersCount: p.number_selections ? p.number_selections.length : 0,
+      selectedNumbers: p.number_selections ? p.number_selections.map(ns => ns.number).sort((a, b) => a - b) : []
+    }));
+
+    res.json({
+      success: true,
+      participants
+    });
+  } catch (error) {
+    console.error('Get participants error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro ao buscar participantes'
+    });
+  }
+});
+
+/**
  * GET /api/bolao/closure
  * Get closure information (only if closed)
  */

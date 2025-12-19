@@ -83,9 +83,67 @@
     <p>Seu pagamento foi registrado e está aguardando confirmação do administrador.</p>
   </section>
 
+  <!-- ===== PARTICIPANTES ===== -->
+  <section id="participantsSection" class="card" style="display:none">
+    <h2>👥 Participantes do Bolão</h2>
+
+    <div class="table-container">
+      <table class="participants-table">
+        <thead>
+          <tr>
+            <th>Nome</th>
+            <th>Cotas</th>
+            <th>Status Pagamento</th>
+            <th>Números Selecionados</th>
+            <th>Data Entrada</th>
+          </tr>
+        </thead>
+        <tbody id="participantsBody">
+          <tr>
+            <td colspan="5" class="empty-message">Carregando...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <!-- ===== SELEÇÃO DE NÚMEROS ===== -->
   <section id="selectionSection" class="card" style="display:none">
-    <!-- todo o HTML de seleção permanece igual ao seu -->
+    <h2>🎯 Seleção de Números</h2>
+
+    <!-- Botões de modo de seleção -->
+    <div class="selection-mode-buttons">
+      <button id="autoGenerateBtn" class="btn btn-success btn-lg">
+        🎲 Gerar Automaticamente
+      </button>
+      <button id="manualSelectBtn" class="btn btn-primary btn-lg">
+        ✋ Escolher Manualmente
+      </button>
+    </div>
+
+    <!-- Área de seleção manual (inicialmente oculta) -->
+    <div id="manualSelectionArea" style="display:none">
+      <p>Selecione até 6 números de 1 a 60:</p>
+      <div id="numberGrid" class="number-grid">
+        <!-- Grid será gerado dinamicamente pelo JS -->
+      </div>
+      <div class="selection-actions">
+        <button id="clearSelectionBtn" class="btn btn-secondary">
+          🗑️ Limpar Seleção
+        </button>
+        <button id="confirmSelectionBtn" class="btn btn-success">
+          ✅ Confirmar Seleção
+        </button>
+      </div>
+    </div>
+
+    <!-- Números selecionados -->
+    <div id="selectedNumbersDisplay" class="selected-numbers-display">
+      <h3>Seus números:</h3>
+      <div id="selectedNumbersList" class="selected-numbers-list">
+        <p class="text-muted">Nenhum número selecionado ainda</p>
+      </div>
+    </div>
   </section>
 
 </div>

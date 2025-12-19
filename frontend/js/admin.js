@@ -92,13 +92,18 @@ async function loadParticipants() {
     const tbody = document.getElementById('participantsBody');
 
     if (participants.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" class="empty-message">Nenhum participante ainda</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-message">Nenhum participante ainda</td></tr>';
       return;
     }
 
     tbody.innerHTML = participants.map(p => `
       <tr>
         <td><strong>${p.name}</strong></td>
+        <td>
+          <span class="quota-badge">
+            ${p.quotaQuantity || 1} ${p.quotaQuantity > 1 ? 'cotas' : 'cota'}
+          </span>
+        </td>
         <td>
           <span class="status-badge status-${p.paymentStatus}">
             ${getStatusLabel(p.paymentStatus)}

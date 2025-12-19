@@ -15,6 +15,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('joinBolaoBtn')?.addEventListener('click', handleJoinBolao);
   document.getElementById('alreadyPaidBtn')?.addEventListener('click', handleAlreadyPaid);
 
+  // Seleção de números
+  document.getElementById('autoGenerateBtn')?.addEventListener('click', handleAutoGenerate);
+  document.getElementById('manualSelectBtn')?.addEventListener('click', handleManualSelect);
+  document.getElementById('clearSelectionBtn')?.addEventListener('click', handleClearSelection);
+  document.getElementById('confirmSelectionBtn')?.addEventListener('click', handleConfirmSelection);
+
   // Copiar PIX
   const copyBtn = document.getElementById('copyPixBtn');
   const pixKeyEl = document.getElementById('pixKeyValue');
@@ -58,8 +64,13 @@ async function init() {
     // ⚠️ SEÇÃO DE NÚMEROS SEMPRE VISÍVEL
     document.getElementById('selectionSection').style.display = 'block';
 
+    // ⚠️ SEÇÃO DE PARTICIPANTES SEMPRE VISÍVEL
+    document.getElementById('participantsSection').style.display = 'block';
+
     await loadPaymentStatus();
     await loadBolaoInfo();
+    await loadMySelections();
+    await loadParticipants();
 
   } catch (err) {
     console.error(err);
@@ -167,6 +178,120 @@ async function handleLogout() {
   window.location.href = '/';
 }
 
+/* ================= SELECTION ================= */
+
+let selectedNumbers = [];
+
+async function handleAutoGenerate() {
+  try {
+    showLoading(true);
+    const response = await api.generateNumbers();
+    if (response.success && response.numbers) {
+      selectedNumbers = response.numbers;
+      await api.selectNumbers(selectedNumbers);
+      displaySelectedNumbers();
+      showToast('✅ Números gerados e salvos automaticamente!', 'success');
+      document.getElementById('manualSelectionArea').style.display = 'none';
+    }
+  } catch (error) {
+    showToast('❌ Erro ao gerar números', 'error');
+  } finally {
+    showLoading(false);
+  }
+}
+
+async function handleManualSelect() {
+  document.getElementById('manualSelectionArea').style.display = 'block';
+  await loadNumberGrid();
+}
+
+async function loadNumberGrid() {
+  const grid = document.getElementById('numberGrid');
+  grid.innerHTML = '';
+
+  for (let i = 1; i <= 60; i++) {
+    const btn = document.createElement('button');
+    btn.className = 'number-btn';
+    btn.textContent = i;
+    btn.dataset.number = i;
+
+    if (selectedNumbers.includes(i)) {
+      btn.classList.add('selected');
+    }
+
+    btn.addEventListener('click', () => toggleNumber(i, btn));
+    grid.appendChild(btn);
+  }
+}
+
+function toggleNumber(num, btn) {
+  const index = selectedNumbers.indexOf(num);
+
+  if (index > -1) {
+    selectedNumbers.splice(index, 1);
+    btn.classList.remove('selected');
+  } else {
+    if (selectedNumbers.length >= 6) {
+      showToast('⚠️ Você já selecionou 6 números', 'warning');
+      return;
+    }
+    selectedNumbers.push(num);
+    btn.classList.add('selected');
+  }
+
+  displaySelectedNumbers();
+}
+
+function handleClearSelection() {
+  selectedNumbers = [];
+  displaySelectedNumbers();
+  loadNumberGrid();
+}
+
+async function handleConfirmSelection() {
+  if (selectedNumbers.length !== 6) {
+    showToast('⚠️ Você deve selecionar exatamente 6 números', 'warning');
+    return;
+  }
+
+  try {
+    showLoading(true);
+    await api.selectNumbers(selectedNumbers);
+    showToast('✅ Números salvos com sucesso!', 'success');
+    document.getElementById('manualSelectionArea').style.display = 'none';
+  } catch (error) {
+    showToast('❌ Erro ao salvar números', 'error');
+  } finally {
+    showLoading(false);
+  }
+}
+
+function displaySelectedNumbers() {
+  const list = document.getElementById('selectedNumbersList');
+
+  if (selectedNumbers.length === 0) {
+    list.innerHTML = '<p class="text-muted">Nenhum número selecionado ainda</p>';
+    return;
+  }
+
+  const sorted = [...selectedNumbers].sort((a, b) => a - b);
+  list.innerHTML = sorted.map(n =>
+    `<span class="selected-number-badge">${n}</span>`
+  ).join('');
+}
+
+async function loadMySelections() {
+  try {
+    const response = await api.getMySelections();
+    if (response.success && response.numbers && response.numbers.length > 0) {
+      selectedNumbers = response.numbers;
+      displaySelectedNumbers();
+    }
+  } catch (error) {
+    console.error('Error loading selections:', error);
+  }
+}
+
 /* ================= DATA ================= */
 
 async function loadBolaoInfo() {
@@ -175,8 +300,79 @@ async function loadBolaoInfo() {
   } catch {}
 }
 
+async function loadParticipants() {
+  try {
+    const response = await api.getBolaoParticipants();
+
+    if (!response.success || !response.participants) {
+      throw new Error('Failed to load participants');
+    }
+
+    const participants = response.participants;
+    const tbody = document.getElementById('participantsBody');
+
+    if (participants.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-message">Nenhum participante ainda</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = participants.map(p => `
+      <tr>
+        <td><strong>${p.name}</strong></td>
+        <td>
+          <span class="quota-badge">
+            ${p.quotaQuantity || 1} ${p.quotaQuantity > 1 ? 'cotas' : 'cota'}
+          </span>
+        </td>
+        <td>
+          <span class="status-badge status-${p.paymentStatus}">
+            ${getStatusLabel(p.paymentStatus)}
+          </span>
+        </td>
+        <td>
+          ${p.selectedNumbersCount > 0
+            ? `<details>
+                <summary>${p.selectedNumbersCount} números</summary>
+                <div class="numbers-preview">
+                  ${p.selectedNumbers.join(', ')}
+                </div>
+              </details>`
+            : '<span class="empty-text">Nenhum</span>'
+          }
+        </td>
+        <td>${formatDate(p.joinedAt)}</td>
+      </tr>
+    `).join('');
+
+  } catch (error) {
+    console.error('Error loading participants:', error);
+  }
+}
+
+function getStatusLabel(status) {
+  const labels = {
+    'pending': '⏳ Pendente',
+    'claimed': '💬 Aguardando',
+    'confirmed': '✅ Confirmado'
+  };
+  return labels[status] || status;
+}
+
+function formatDate(dateString) {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
 async function refreshData() {
   await loadPaymentStatus();
+  await loadMySelections();
+  await loadParticipants();
 }
 
 /* ================= UTILS ================= */
