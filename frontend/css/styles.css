@@ -498,9 +498,194 @@ body {
   font-weight: 500;
 }
 
+/* Tutorial Box */
+.tutorial-box {
+  background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+  border: 2px solid var(--primary-color);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  margin-bottom: var(--spacing-xl);
+}
+
+.tutorial-box h3 {
+  color: var(--primary-color);
+  margin-bottom: var(--spacing-lg);
+  font-size: 1.3rem;
+}
+
+.tutorial-steps {
+  list-style: none;
+  counter-reset: step-counter;
+  padding-left: 0;
+}
+
+.tutorial-steps li {
+  counter-increment: step-counter;
+  position: relative;
+  padding-left: 3rem;
+  padding-bottom: var(--spacing-lg);
+  margin-bottom: var(--spacing-md);
+  border-left: 2px solid var(--gray-300);
+  color: var(--gray-700);
+  line-height: 1.8;
+}
+
+.tutorial-steps li:last-child {
+  border-left: 2px solid transparent;
+  margin-bottom: 0;
+}
+
+.tutorial-steps li::before {
+  content: counter(step-counter);
+  position: absolute;
+  left: -1.2rem;
+  top: -0.2rem;
+  background: var(--primary-color);
+  color: white;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1rem;
+  box-shadow: var(--shadow-md);
+}
+
+.tutorial-steps strong {
+  color: var(--gray-900);
+}
+
+.highlight-number {
+  background: var(--warning-color);
+  color: white;
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+/* Quota Selector Box */
+.quota-selector-box {
+  background: var(--gray-50);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.quota-selector-box label {
+  color: var(--gray-800);
+  font-size: 1rem;
+}
+
+.quota-selector-box input[type="number"] {
+  padding: var(--spacing-md);
+  border: 2px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  font-size: 1.2rem;
+  font-weight: 600;
+  text-align: center;
+  max-width: 150px;
+}
+
+.quota-selector-box input[type="number"]:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.total-display {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: white;
+  border-radius: var(--radius-md);
+  border-left: 4px solid var(--success-color);
+}
+
+.total-display span {
+  color: var(--gray-700);
+  font-size: 1rem;
+}
+
+.total-display strong {
+  color: var(--success-color);
+  font-size: 1.5rem;
+}
+
+/* PIX Recipient Info */
+.pix-recipient-info {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+}
+
+.pix-recipient-info p {
+  margin-bottom: var(--spacing-md);
+  font-size: 1.1rem;
+}
+
+.pix-recipient-info strong {
+  display: block;
+  font-size: 0.85rem;
+  opacity: 0.9;
+  margin-bottom: var(--spacing-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.pix-recipient-value {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: white;
+}
+
 /* Status Messages */
 .status-message {
   margin-top: var(--spacing-md);
+}
+
+/* Warning Box - Payment Notice */
+.warning-box {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border: 2px solid var(--warning-color);
+  border-left: 6px solid var(--warning-color);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.15);
+}
+
+.warning-box::before {
+  content: '👁️';
+  font-size: 2rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.warning-box-content {
+  flex: 1;
+}
+
+.warning-box strong {
+  display: block;
+  color: #92400e;
+  font-size: 1.1rem;
+  margin-bottom: var(--spacing-xs);
+}
+
+.warning-box p {
+  color: #78350f;
+  margin: 0;
+  line-height: 1.6;
 }
 
 .info-text {
@@ -1315,6 +1500,44 @@ details summary {
 @media (max-width: 480px) {
   .number-grid {
     grid-template-columns: repeat(5, 1fr);
+  }
+
+  .tutorial-steps li {
+    padding-left: 2.5rem;
+    font-size: 0.9rem;
+  }
+
+  .tutorial-steps li::before {
+    width: 2rem;
+    height: 2rem;
+    left: -1rem;
+    font-size: 0.9rem;
+  }
+
+  .quota-selector-box {
+    padding: var(--spacing-md);
+  }
+
+  .total-display {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
+  }
+
+  .warning-box {
+    padding: var(--spacing-md);
+  }
+
+  .warning-box::before {
+    font-size: 1.5rem;
+  }
+
+  .warning-box strong {
+    font-size: 1rem;
+  }
+
+  .warning-box p {
+    font-size: 0.9rem;
   }
 }
 
