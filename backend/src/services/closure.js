@@ -104,9 +104,11 @@ export async function closeBolao(bolaoId, adminUserId) {
     }
 
     console.log('💰 Total funds:', financials.totalFunds);
-    console.log('🎯 Bet level:', financials.betLevel, 'numbers');
-    console.log('💵 Bet cost:', financials.betCost);
-    console.log('📦 Surplus bets:', financials.surplusBets);
+    console.log('🎯 Optimized bet distribution:');
+    financials.betDistribution.forEach(bet => {
+      console.log(`   - ${bet.count}× ${bet.numbers} números (R$ ${bet.cost} cada)`);
+    });
+    console.log('🎲 Total bets:', financials.totalBets);
     console.log('💸 Remaining funds:', financials.remainingFunds);
 
     // 3. Get all confirmed participants with their selections
@@ -161,12 +163,7 @@ export async function closeBolao(bolaoId, adminUserId) {
       selectedNumbers: p.number_selections.map(ns => ns.number).sort((a, b) => a - b)
     }));
 
-    // 4. Consolidate main bet numbers
-    const mainBetNumbers = await consolidateFinalNumbers(bolaoId, financials.betLevel);
-
-    console.log('🎲 Main bet numbers:', mainBetNumbers);
-
-    // Get all number selections with user names for tooltips
+    // 4. Get all number selections with user names for tooltips
     const { data: allSelections } = await supabase
       .from('number_selections')
       .select(`
@@ -191,69 +188,110 @@ export async function closeBolao(bolaoId, adminUserId) {
       });
     }
 
-    // 5. Generate surplus bets if any
-    const surplusBets = [];
-    const usedNumbers = new Set(mainBetNumbers); // Track used numbers per bet cycle
+    // 5. Generate final bets based on optimized distribution
+    const finalBetsArray = [];
+    const usedNumbers = new Set(); // Track used numbers across all bets
+    let isFirstLargeBet = true; // Track if we've generated the first large bet
 
-    for (let i = 0; i < financials.surplusBets; i++) {
-      console.log(`\n🎰 Generating surplus bet ${i + 1}...`);
+    for (const betInfo of financials.betDistribution) {
+      console.log(`\n🎲 Generating ${betInfo.count} bet(s) of ${betInfo.numbers} numbers...`);
 
-      // Try to find unused numbers first
-      let availableNumbers = [];
-      for (let num = 1; num <= 60; num++) {
-        if (!usedNumbers.has(num)) {
-          availableNumbers.push(num);
+      for (let i = 0; i < betInfo.count; i++) {
+        let numbers;
+
+        if (betInfo.numbers >= 7) {
+          // Large bets (7-9 numbers)
+          if (isFirstLargeBet && betInfo.numbers === financials.betLevel) {
+            // First large bet: use democratic consolidation (votes + scores)
+            numbers = await consolidateFinalNumbers(bolaoId, betInfo.numbers);
+            console.log(`   Bet ${i + 1}/${betInfo.count} (democratic): ${numbers.join(', ')}`);
+            isFirstLargeBet = false;
+          } else {
+            // Subsequent large bets: use score-based selection with unused numbers
+            let availableNumbers = [];
+            for (let num = 1; num <= 60; num++) {
+              if (!usedNumbers.has(num)) {
+                availableNumbers.push(num);
+              }
+            }
+
+            // If not enough unused numbers, reset pool
+            if (availableNumbers.length < betInfo.numbers) {
+              console.log(`   ⚠️  Only ${availableNumbers.length} unused numbers. Resetting pool.`);
+              usedNumbers.clear();
+              availableNumbers = Array.from({ length: 60 }, (_, i) => i + 1);
+            }
+
+            const { data: scores } = await supabase
+              .from('number_scores')
+              .select('number, final_score')
+              .eq('bolao_id', bolaoId)
+              .in('number', availableNumbers)
+              .order('final_score', { ascending: false })
+              .limit(betInfo.numbers);
+
+            if (scores && scores.length >= betInfo.numbers) {
+              numbers = scores.map(s => s.number).sort((a, b) => a - b);
+              console.log(`   Bet ${i + 1}/${betInfo.count} (score-based): ${numbers.join(', ')}`);
+            } else {
+              // Fallback to weighted random
+              const scoresData = await getScores(bolaoId, false);
+              numbers = generateWeightedRandomNumbers(
+                scoresData.map(s => ({ number: s.number, score: s.final_score })),
+                betInfo.numbers
+              );
+              console.log(`   Bet ${i + 1}/${betInfo.count} (fallback): ${numbers.join(', ')}`);
+            }
+          }
+        } else {
+          // Small bets (6 numbers): use score-based selection
+          let availableNumbers = [];
+          for (let num = 1; num <= 60; num++) {
+            if (!usedNumbers.has(num)) {
+              availableNumbers.push(num);
+            }
+          }
+
+          if (availableNumbers.length < 6) {
+            usedNumbers.clear();
+            availableNumbers = Array.from({ length: 60 }, (_, i) => i + 1);
+          }
+
+          const { data: scores } = await supabase
+            .from('number_scores')
+            .select('number, final_score')
+            .eq('bolao_id', bolaoId)
+            .in('number', availableNumbers)
+            .order('final_score', { ascending: false })
+            .limit(6);
+
+          if (scores && scores.length >= 6) {
+            numbers = scores.map(s => s.number).sort((a, b) => a - b);
+            console.log(`   Bet ${i + 1}/${betInfo.count}: ${numbers.join(', ')}`);
+          } else {
+            // Fallback to weighted random
+            const scoresData = await getScores(bolaoId, false);
+            numbers = generateWeightedRandomNumbers(
+              scoresData.map(s => ({ number: s.number, score: s.final_score })),
+              6
+            );
+            console.log(`   Bet ${i + 1}/${betInfo.count} (fallback): ${numbers.join(', ')}`);
+          }
         }
+
+        // Add bet to final array
+        finalBetsArray.push({
+          type: `${betInfo.numbers} números`,
+          numbers: numbers,
+          cost: betInfo.cost
+        });
+
+        // Mark numbers as used
+        numbers.forEach(n => usedNumbers.add(n));
       }
-
-      // If not enough unused numbers, reset and use all numbers
-      if (availableNumbers.length < 6) {
-        console.log(`   ⚠️  Only ${availableNumbers.length} unused numbers. Resetting pool to reuse numbers.`);
-        usedNumbers.clear(); // Reset the used numbers
-        availableNumbers = Array.from({ length: 60 }, (_, i) => i + 1); // All numbers 1-60
-      }
-
-      console.log(`   Available numbers: ${availableNumbers.length}`);
-
-      // Get scores for available numbers
-      const { data: scores, error: scoresError } = await supabase
-        .from('number_scores')
-        .select('number, final_score')
-        .eq('bolao_id', bolaoId)
-        .in('number', availableNumbers)
-        .order('final_score', { ascending: false })
-        .limit(6);
-
-      if (scoresError) {
-        console.error(`   Error fetching scores:`, scoresError);
-        continue;
-      }
-
-      if (!scores || scores.length < 6) {
-        console.error(`   Not enough scores found (need 6, got ${scores?.length || 0}).`);
-        // Use weighted random generation as fallback
-        const scoresData = await getScores(bolaoId, false);
-        const generated = generateWeightedRandomNumbers(
-          scoresData.map(s => ({ number: s.number, score: s.final_score })),
-          6
-        );
-        surplusBets.push(generated);
-        console.log(`   Surplus bet ${i + 1} numbers (fallback):`, generated);
-        continue;
-      }
-
-      console.log(`   Got ${scores.length} scored numbers`);
-
-      const surplusNumbers = scores.map(s => s.number).sort((a, b) => a - b);
-      surplusBets.push(surplusNumbers);
-
-      console.log(`   Surplus bet ${i + 1} numbers:`, surplusNumbers);
-
-      // Mark these numbers as used for next iteration
-      surplusNumbers.forEach(num => usedNumbers.add(num));
     }
 
-    console.log(`\n✅ Generated ${surplusBets.length} surplus bets (requested ${financials.surplusBets})`);
+    console.log(`\n✅ Generated ${finalBetsArray.length} total bets (optimized from ${financials.totalBets})`);
 
     // 6. Create closure data
     const closureData = {
@@ -270,20 +308,11 @@ export async function closeBolao(bolaoId, adminUserId) {
         betLevel: financials.betLevel,
         betCost: financials.betCost,
         surplusBets: financials.surplusBets,
-        remainingFunds: financials.remainingFunds
+        remainingFunds: financials.remainingFunds,
+        betDistribution: financials.betDistribution,
+        totalBets: financials.totalBets
       },
-      finalBets: [
-        {
-          type: `${financials.betLevel} números`,
-          numbers: mainBetNumbers,
-          cost: financials.betCost
-        },
-        ...surplusBets.map((nums, idx) => ({
-          type: '6 números (surplus)',
-          numbers: nums,
-          cost: 6
-        }))
-      ]
+      finalBets: finalBetsArray
     };
 
     // 7. Generate SHA-256 hash

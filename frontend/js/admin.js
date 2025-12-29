@@ -156,8 +156,12 @@ async function loadTotals() {
     document.getElementById('confirmedCount').textContent = response.confirmedCount;
 
     if (response.betLevel > 0) {
-      document.getElementById('betLevel').textContent = `${response.betLevel} números`;
-      document.getElementById('surplusBets').textContent = `${response.surplusBets} apostas de 6`;
+      // Extract bet info from breakdown for cleaner display
+      const betLevelText = response.breakdown?.mainBet || `${response.betLevel} números`;
+      const surplusText = response.breakdown?.surplus || `${response.surplusBets} apostas de 6`;
+
+      document.getElementById('betLevel').textContent = betLevelText;
+      document.getElementById('surplusBets').textContent = surplusText;
     } else {
       document.getElementById('betLevel').textContent = 'Insuficiente';
       document.getElementById('surplusBets').textContent = '-';

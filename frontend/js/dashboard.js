@@ -370,22 +370,41 @@ async function loadParticipants() {
     const tbody = document.getElementById('participantsBody');
 
     if (participants.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" class="empty-message">Nenhum participante ainda</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-message">Nenhum participante ainda</td></tr>';
       return;
     }
 
-    tbody.innerHTML = participants.map(p => `
+    // Calcular total de cotas confirmadas para dividir o prêmio
+    const totalQuotas = participants
+      .filter(p => p.paymentStatus === 'confirmed')
+      .reduce((sum, p) => sum + (p.quotaQuantity || 1), 0);
+
+    const prizeAmount = 1000000000; // R$ 1 bilhão
+
+    tbody.innerHTML = participants.map(p => {
+      const quotas = p.quotaQuantity || 1;
+      const prize = totalQuotas > 0 ? (prizeAmount / totalQuotas) * quotas : 0;
+      const prizeFormatted = prize > 0
+        ? `R$ ${(prize / 1000000).toFixed(2)}M`
+        : p.paymentStatus === 'confirmed' ? 'Calculando...' : '-';
+
+      return `
       <tr>
         <td><strong>${p.name}</strong></td>
         <td>
           <span class="quota-badge">
-            ${p.quotaQuantity || 1} ${p.quotaQuantity > 1 ? 'cotas' : 'cota'}
+            ${quotas} ${quotas > 1 ? 'cotas' : 'cota'}
           </span>
         </td>
         <td>
           <span class="status-badge status-${p.paymentStatus}">
             ${getStatusLabel(p.paymentStatus)}
           </span>
+        </td>
+        <td>
+          <strong style="color: #27ae60; font-size: 1.1em;">
+            ${prizeFormatted}
+          </strong>
         </td>
         <td>
           ${p.selectedNumbersCount > 0
@@ -400,7 +419,8 @@ async function loadParticipants() {
         </td>
         <td>${formatDate(p.joinedAt)}</td>
       </tr>
-    `).join('');
+      `;
+    }).join('');
 
   } catch (error) {
     console.error('Error loading participants:', error);
