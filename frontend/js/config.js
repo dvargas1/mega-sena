@@ -9,10 +9,7 @@ const CONFIG = {
   PIX_RECIPIENT_BANK: 'Itaú',
   CONTACT_NUMBER: '(21) 99641-7541',
   QUOTA_VALUE: 20.00,
-  QR_CODE_SIZE: 200,
-
-  // 🌐 API Configuration
-  API_URL: 'http://201.23.19.195:4001'
+  QR_CODE_SIZE: 200
 };
 
 // Exportar para uso global
