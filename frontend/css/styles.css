@@ -1559,7 +1559,7 @@ details summary {
 /* ================= STATS CARD ================= */
 
 .stats-card {
-  background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+  background: white;
   border: 2px solid var(--primary-color);
   border-left: 6px solid var(--primary-color);
   margin-bottom: var(--spacing-xl);
