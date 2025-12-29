@@ -1,0 +1,10 @@
+{
+  "buildCommand": "echo 'No build needed'",
+  "outputDirectory": "frontend",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "http://201.23.19.195:4001/api/$1"
+    }
+  ]
+}
