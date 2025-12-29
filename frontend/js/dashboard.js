@@ -149,6 +149,9 @@ async function loadPaymentStatus() {
 
   // 🔐 Controle de permissão
   toggleSelectionPermissions(paymentStatus === 'confirmed');
+
+  // Atualizar card de stats após verificar status
+  await loadBolaoInfo();
 }
 
 function showPaymentSection(state) {
@@ -354,8 +357,55 @@ async function loadMySelections() {
 
 async function loadBolaoInfo() {
   try {
-    await api.getBolaoInfo();
-  } catch {}
+    const response = await api.getBolaoInfo();
+
+    if (response.success && response.bolao) {
+      updateStatsCard(response.bolao);
+    }
+  } catch (error) {
+    console.error('Error loading bolao info:', error);
+  }
+}
+
+/**
+ * Atualiza o card de estatísticas do bolão
+ * Exibido apenas para usuários confirmados
+ */
+function updateStatsCard(bolaoData) {
+  const statsSection = document.getElementById('statsSection');
+
+  // Só exibe para usuários confirmados
+  if (paymentStatus !== 'confirmed') {
+    statsSection.style.display = 'none';
+    return;
+  }
+
+  // Exibir seção
+  statsSection.style.display = 'block';
+
+  // Atualizar valores
+  document.getElementById('statsConfirmedCount').textContent =
+    bolaoData.confirmedCount || 0;
+
+  document.getElementById('statsTotalQuotas').textContent =
+    bolaoData.totalQuotas || 0;
+
+  const totalFunds = bolaoData.totalFunds || 0;
+  document.getElementById('statsTotalFunds').textContent =
+    `R$ ${totalFunds.toFixed(2).replace('.', ',')}`;
+
+  // Calcular prêmio estimado por cota (R$ 1 bilhão / total de cotas)
+  const totalQuotas = bolaoData.totalQuotas || 0;
+  const prizeAmount = 1000000000; // R$ 1 bilhão
+
+  if (totalQuotas > 0) {
+    const prizePerQuota = prizeAmount / totalQuotas;
+    const prizeInMillions = (prizePerQuota / 1000000).toFixed(2);
+    document.getElementById('statsPrizePerQuota').textContent =
+      `R$ ${prizeInMillions}M`;
+  } else {
+    document.getElementById('statsPrizePerQuota').textContent = '-';
+  }
 }
 
 async function loadParticipants() {

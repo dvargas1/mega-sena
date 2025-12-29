@@ -50,7 +50,7 @@ router.get('/info', async (req, res) => {
     // Count participations
     const { data: allParticipants, error: allError } = await supabase
       .from('participations')
-      .select('id, payment_status')
+      .select('id, payment_status, quota_quantity')
       .eq('bolao_id', bolao.id);
 
     if (allError) throw allError;
@@ -59,6 +59,15 @@ router.get('/info', async (req, res) => {
     const confirmedParticipants = allParticipants
       ? allParticipants.filter(p => p.payment_status === CONFIG.PAYMENT_STATUS.CONFIRMED).length
       : 0;
+
+    // Calculate total quotas and funds
+    const totalQuotas = allParticipants
+      ? allParticipants
+          .filter(p => p.payment_status === CONFIG.PAYMENT_STATUS.CONFIRMED)
+          .reduce((sum, p) => sum + (p.quota_quantity || 1), 0)
+      : 0;
+
+    const totalFunds = totalQuotas * parseFloat(bolao.quota_value);
 
     res.json({
       success: true,
@@ -69,6 +78,8 @@ router.get('/info', async (req, res) => {
         status: bolao.status,
         participantCount: totalParticipants,
         confirmedCount: confirmedParticipants,
+        totalQuotas: totalQuotas,
+        totalFunds: totalFunds,
         createdAt: bolao.created_at
       }
     });

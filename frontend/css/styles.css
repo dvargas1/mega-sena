@@ -1555,3 +1555,85 @@ details summary {
   font-size: 0.9rem;
   white-space: nowrap;
 }
+
+/* ================= STATS CARD ================= */
+
+.stats-card {
+  background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+  border: 2px solid var(--primary-color);
+  border-left: 6px solid var(--primary-color);
+  margin-bottom: var(--spacing-xl);
+}
+
+.stats-card h2 {
+  color: var(--primary-color);
+  margin-bottom: var(--spacing-lg);
+}
+
+.stats-card .totals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--spacing-md);
+}
+
+.stats-card .total-item {
+  background: white;
+  border: 2px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  text-align: center;
+  transition: all 0.3s;
+}
+
+.stats-card .total-item:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary-color);
+}
+
+.stats-card .total-label {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--gray-600);
+  margin-bottom: var(--spacing-sm);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stats-card .total-value {
+  display: block;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--primary-color);
+}
+
+.stats-card .total-value.stats-money {
+  color: var(--success-color);
+}
+
+.stats-card .total-value.stats-prize {
+  color: #f59e0b;
+  font-size: 2rem;
+}
+
+/* Responsive para stats card */
+@media (max-width: 768px) {
+  .stats-card .totals-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .stats-card .total-value {
+    font-size: 1.5rem;
+  }
+
+  .stats-card .total-value.stats-prize {
+    font-size: 1.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-card .totals-grid {
+    grid-template-columns: 1fr;
+  }
+}
