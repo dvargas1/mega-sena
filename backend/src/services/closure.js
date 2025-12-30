@@ -65,16 +65,16 @@ export async function consolidateFinalNumbers(bolaoId, targetCount) {
       return b.score - a.score; // Higher score first (tiebreaker)
     });
 
-    // Get larger pool of candidates (3x the target)
-    const poolSize = Math.min(targetCount * 3, 60);
+    // Get larger pool of candidates (4x the target for more options)
+    const poolSize = Math.min(targetCount * 4, 60);
     const candidatePool = ranked.slice(0, poolSize);
 
     console.log(`🎲 Democratic consolidation: selecting ${targetCount} from top ${candidatePool.length} candidates`);
 
-    // Use intelligent selector
+    // Use intelligent selector with high strictness
     const selected = selectBestNumbers(candidatePool, targetCount, {
-      strictness: 'medium',
-      minQualityScore: 60
+      strictness: 'high',
+      minQualityScore: 70
     });
 
     // Validate result
@@ -241,8 +241,8 @@ export async function closeBolao(bolaoId, adminUserId) {
               availableNumbers = Array.from({ length: 60 }, (_, i) => i + 1);
             }
 
-            // Get larger pool (3x the target)
-            const poolSize = Math.min(betInfo.numbers * 3, availableNumbers.length);
+            // Get larger pool (4x the target for better selection)
+            const poolSize = Math.min(betInfo.numbers * 4, availableNumbers.length);
 
             const { data: scores } = await supabase
               .from('number_scores')
@@ -253,15 +253,15 @@ export async function closeBolao(bolaoId, adminUserId) {
               .limit(poolSize);
 
             if (scores && scores.length >= betInfo.numbers) {
-              // Use intelligent selector
+              // Use intelligent selector with high strictness
               const candidates = scores.map(s => ({
                 number: s.number,
                 score: s.final_score
               }));
 
               numbers = selectBestNumbers(candidates, betInfo.numbers, {
-                strictness: 'medium',
-                minQualityScore: 50
+                strictness: 'high',
+                minQualityScore: 65
               });
 
               console.log(`   Bet ${i + 1}/${betInfo.count} (smart score-based): ${numbers.join(', ')}`);
@@ -289,8 +289,8 @@ export async function closeBolao(bolaoId, adminUserId) {
             availableNumbers = Array.from({ length: 60 }, (_, i) => i + 1);
           }
 
-          // Get larger pool (18 números = 3x)
-          const poolSize = Math.min(18, availableNumbers.length);
+          // Get larger pool (24 números = 4x)
+          const poolSize = Math.min(24, availableNumbers.length);
 
           const { data: scores } = await supabase
             .from('number_scores')
@@ -301,15 +301,15 @@ export async function closeBolao(bolaoId, adminUserId) {
             .limit(poolSize);
 
           if (scores && scores.length >= 6) {
-            // Use intelligent selector
+            // Use intelligent selector with high strictness
             const candidates = scores.map(s => ({
               number: s.number,
               score: s.final_score
             }));
 
             numbers = selectBestNumbers(candidates, 6, {
-              strictness: 'medium',
-              minQualityScore: 50
+              strictness: 'high',
+              minQualityScore: 65
             });
 
             console.log(`   Bet ${i + 1}/${betInfo.count} (smart): ${numbers.join(', ')}`);

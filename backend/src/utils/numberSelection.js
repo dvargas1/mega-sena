@@ -8,13 +8,14 @@
 /**
  * Detecta números consecutivos em uma seleção
  * @param {Array<number>} numbers - Números ordenados
- * @returns {object} { hasIssue: boolean, maxSequence: number, sequences: Array }
+ * @returns {object} { hasIssue: boolean, maxSequence: number, sequences: Array, pairCount: number }
  */
 export function hasConsecutiveIssue(numbers) {
   const sorted = [...numbers].sort((a, b) => a - b);
   let maxSequence = 1;
   let currentSequence = 1;
   const sequences = [];
+  const pairs = [];
   let sequenceStart = sorted[0];
 
   for (let i = 1; i < sorted.length; i++) {
@@ -24,12 +25,17 @@ export function hasConsecutiveIssue(numbers) {
         maxSequence = currentSequence;
       }
     } else {
-      if (currentSequence >= 3) {
-        sequences.push({
+      if (currentSequence >= 2) {
+        const seq = {
           start: sequenceStart,
           end: sorted[i - 1],
           length: currentSequence
-        });
+        };
+        if (currentSequence >= 3) {
+          sequences.push(seq);
+        } else if (currentSequence === 2) {
+          pairs.push(seq);
+        }
       }
       currentSequence = 1;
       sequenceStart = sorted[i];
@@ -37,18 +43,28 @@ export function hasConsecutiveIssue(numbers) {
   }
 
   // Check last sequence
-  if (currentSequence >= 3) {
-    sequences.push({
+  if (currentSequence >= 2) {
+    const seq = {
       start: sequenceStart,
       end: sorted[sorted.length - 1],
       length: currentSequence
-    });
+    };
+    if (currentSequence >= 3) {
+      sequences.push(seq);
+    } else if (currentSequence === 2) {
+      pairs.push(seq);
+    }
   }
 
+  // Issue if: 3+ consecutive OR multiple pairs of consecutive
+  const hasIssue = maxSequence >= 3 || pairs.length > 1;
+
   return {
-    hasIssue: maxSequence >= 3,
+    hasIssue,
     maxSequence,
-    sequences
+    sequences,
+    pairs,
+    pairCount: pairs.length
   };
 }
 
@@ -76,7 +92,7 @@ export function getParityBalance(numbers) {
 /**
  * Analisa distribuição por faixas (décadas)
  * @param {Array<number>} numbers - Números a analisar
- * @returns {object} { ranges, diversity, isWellDistributed }
+ * @returns {object} { ranges, diversity, isWellDistributed, minCoverage }
  */
 export function getDecadeDistribution(numbers) {
   const ranges = {
@@ -87,11 +103,30 @@ export function getDecadeDistribution(numbers) {
 
   const usedRanges = Object.values(ranges).filter(count => count > 0).length;
   const maxConcentration = Math.max(...Object.values(ranges)) / numbers.length;
+  const minInRange = Math.min(...Object.values(ranges).filter(v => v > 0));
+
+  // Para apostas grandes (7+), exigir pelo menos 2 números em cada faixa usada
+  // Para apostas pequenas (6), exigir pelo menos 2 faixas
+  const betSize = numbers.length;
+  let isWellDistributed;
+
+  if (betSize >= 8) {
+    // Apostas grandes: exigir 3 faixas E mínimo 2 em cada E max 60% concentração
+    isWellDistributed = usedRanges === 3 && minInRange >= 2 && maxConcentration <= 0.6;
+  } else if (betSize === 7) {
+    // 7 números: exigir pelo menos 2 faixas E mínimo 2 em cada E max 65% concentração
+    isWellDistributed = usedRanges >= 2 && minInRange >= 2 && maxConcentration <= 0.65;
+  } else {
+    // 6 números: critério original (2 faixas, max 70%)
+    isWellDistributed = usedRanges >= 2 && maxConcentration <= 0.7;
+  }
 
   return {
     ranges,
     diversity: usedRanges,
-    isWellDistributed: usedRanges >= 2 && maxConcentration <= 0.7
+    isWellDistributed,
+    minCoverage: minInRange,
+    maxConcentration: Math.round(maxConcentration * 100) / 100
   };
 }
 
@@ -126,11 +161,25 @@ export function validateSelection(numbers) {
   // 1. Consecutivos
   const consecutive = hasConsecutiveIssue(numbers);
   if (consecutive.hasIssue) {
+    let message;
+    let severity;
+
+    if (consecutive.maxSequence >= 4) {
+      message = `Sequência de ${consecutive.maxSequence} números consecutivos`;
+      severity = 'high';
+    } else if (consecutive.maxSequence === 3) {
+      message = `Sequência de 3 números consecutivos`;
+      severity = 'medium';
+    } else if (consecutive.pairCount > 1) {
+      message = `${consecutive.pairCount} pares de números consecutivos`;
+      severity = 'medium';
+    }
+
     issues.push({
       type: 'consecutive',
-      severity: consecutive.maxSequence >= 4 ? 'high' : 'medium',
-      message: `Sequência de ${consecutive.maxSequence} números consecutivos`,
-      data: consecutive.sequences
+      severity,
+      message,
+      data: { sequences: consecutive.sequences, pairs: consecutive.pairs }
     });
   }
 
@@ -193,7 +242,12 @@ export function scoreSelectionQuality(numbers) {
   } else if (consecutive.maxSequence === 4) {
     score -= 25;
   } else if (consecutive.maxSequence === 3) {
-    score -= 10;
+    score -= 15;
+  }
+
+  // Penalidade adicional por múltiplos pares
+  if (consecutive.pairCount > 1) {
+    score -= (consecutive.pairCount - 1) * 15; // -15 por cada par extra
   }
 
   // Penalidades por paridade
@@ -209,10 +263,18 @@ export function scoreSelectionQuality(numbers) {
   // Penalidades por distribuição
   const distribution = getDecadeDistribution(numbers);
   if (distribution.diversity === 1) {
-    score -= 30;
+    score -= 40; // Tudo em uma faixa é muito ruim
   } else if (distribution.diversity === 2) {
-    score -= 5;
+    // Penalizar por concentração alta
+    if (distribution.maxConcentration > 0.7) {
+      score -= 20;
+    } else if (distribution.maxConcentration > 0.6) {
+      score -= 10;
+    } else {
+      score -= 5;
+    }
   }
+  // 3 faixas é ideal, sem penalidade
 
   // Penalidades por múltiplos
   const multiples = getMultiplesAnalysis(numbers);
@@ -229,25 +291,19 @@ export function scoreSelectionQuality(numbers) {
 // ===== SELEÇÃO INTELIGENTE =====
 
 /**
- * Verifica se adicionar um número criará 3+ consecutivos
+ * Verifica se adicionar um número criará 3+ consecutivos ou múltiplos pares
  * @param {Array<number>} selected - Números já selecionados
  * @param {number} candidate - Número candidato
  * @returns {boolean} True se criar problema
  */
 function wouldCreateConsecutive(selected, candidate) {
   const temp = [...selected, candidate].sort((a, b) => a - b);
-  let sequence = 1;
 
-  for (let i = 1; i < temp.length; i++) {
-    if (temp[i] === temp[i - 1] + 1) {
-      sequence++;
-      if (sequence >= 3) return true;
-    } else {
-      sequence = 1;
-    }
-  }
+  // Usar a função de validação completa
+  const check = hasConsecutiveIssue(temp);
 
-  return false;
+  // Rejeitar se criar 3+ consecutivos OU mais de 1 par
+  return check.hasIssue;
 }
 
 /**
@@ -267,6 +323,41 @@ function wouldMaintainParity(selected, candidate, targetCount) {
   if (progress < 0.5) return true; // Primeiros 50% livre
 
   return ratio >= 0.2 && ratio <= 0.8;
+}
+
+/**
+ * Verifica se adicionar um número manteria boa distribuição por faixas
+ * @param {Array<number>} selected - Números já selecionados
+ * @param {number} candidate - Número candidato
+ * @param {number} targetCount - Total desejado
+ * @returns {boolean} True se ok adicionar
+ */
+function wouldMaintainDistribution(selected, candidate, targetCount) {
+  const temp = [...selected, candidate];
+  const progress = temp.length / targetCount;
+
+  // Primeiros 50%: livre
+  if (progress < 0.5) return true;
+
+  // A partir de 50%: verificar concentração
+  const ranges = {
+    low: temp.filter(n => n >= 1 && n <= 20).length,
+    mid: temp.filter(n => n >= 21 && n <= 40).length,
+    high: temp.filter(n => n >= 41 && n <= 60).length
+  };
+
+  const maxConcentration = Math.max(ranges.low, ranges.mid, ranges.high) / temp.length;
+
+  // Para apostas grandes (8+), exigir máximo 60% em uma faixa
+  // Para apostas médias (7), exigir máximo 65%
+  // Para apostas pequenas (6), exigir máximo 70%
+  if (targetCount >= 8) {
+    return maxConcentration <= 0.6;
+  } else if (targetCount === 7) {
+    return maxConcentration <= 0.65;
+  } else {
+    return maxConcentration <= 0.7;
+  }
 }
 
 /**
@@ -312,7 +403,13 @@ export function selectBestNumbers(candidates, count, options = {}) {
       continue;
     }
 
-    // Verificar paridade
+    // Verificar distribuição (medium e high)
+    if (strictness !== 'low' && !wouldMaintainDistribution(selected, num, count)) {
+      skipped.push({ num, reason: 'distribution' });
+      continue;
+    }
+
+    // Verificar paridade (apenas high)
     if (strictness === 'high' && !wouldMaintainParity(selected, num, count)) {
       skipped.push({ num, reason: 'parity' });
       continue;
