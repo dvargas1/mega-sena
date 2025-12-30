@@ -291,6 +291,71 @@ export function scoreSelectionQuality(numbers) {
 // ===== SELEÇÃO INTELIGENTE =====
 
 /**
+ * Gera números aleatórios com distribuição forçada
+ * @param {number} count - Quantos números gerar
+ * @param {Array<number>} exclude - Números a excluir (opcional)
+ * @returns {Array<number>} Números aleatórios com boa distribuição
+ */
+function generateRandomWithDistribution(count, exclude = []) {
+  const selected = [];
+  const available = Array.from({ length: 60 }, (_, i) => i + 1)
+    .filter(n => !exclude.includes(n));
+
+  // Determinar distribuição ideal por faixa
+  let targetPerRange;
+  if (count >= 9) {
+    targetPerRange = { low: 3, mid: 3, high: 3 }; // 3-3-3
+  } else if (count === 8) {
+    targetPerRange = { low: 3, mid: 3, high: 2 }; // 3-3-2
+  } else if (count === 7) {
+    targetPerRange = { low: 2, mid: 2, high: 3 }; // 2-2-3
+  } else {
+    targetPerRange = { low: 2, mid: 2, high: 2 }; // 2-2-2 para 6
+  }
+
+  // Separar disponíveis por faixa
+  const ranges = {
+    low: available.filter(n => n >= 1 && n <= 20),
+    mid: available.filter(n => n >= 21 && n <= 40),
+    high: available.filter(n => n >= 41 && n <= 60)
+  };
+
+  // Selecionar de cada faixa
+  for (const [range, target] of Object.entries(targetPerRange)) {
+    const pool = ranges[range];
+    for (let i = 0; i < target && pool.length > 0; i++) {
+      // Selecionar aleatório da faixa
+      let attempts = 0;
+      let candidate;
+
+      do {
+        const idx = Math.floor(Math.random() * pool.length);
+        candidate = pool[idx];
+        pool.splice(idx, 1); // Remove para não repetir
+        attempts++;
+      } while (
+        attempts < 10 &&
+        pool.length > 0 &&
+        wouldCreateConsecutive(selected, candidate)
+      );
+
+      selected.push(candidate);
+    }
+  }
+
+  // Se ainda falta (improvável), preencher com qualquer disponível
+  while (selected.length < count && available.length > 0) {
+    const remaining = available.filter(n => !selected.includes(n));
+    if (remaining.length === 0) break;
+
+    const idx = Math.floor(Math.random() * remaining.length);
+    selected.push(remaining[idx]);
+  }
+
+  return selected.sort((a, b) => a - b);
+}
+
+/**
  * Verifica se adicionar um número criará 3+ consecutivos ou múltiplos pares
  * @param {Array<number>} selected - Números já selecionados
  * @param {number} candidate - Número candidato
@@ -419,27 +484,18 @@ export function selectBestNumbers(candidates, count, options = {}) {
     selected.push(num);
   }
 
-  // Se não conseguiu selecionar o suficiente, relaxa critérios
+  // Se não conseguiu selecionar o suficiente, usa geração aleatória com distribuição forçada
   if (selected.length < count) {
-    console.log(`⚠️  Only selected ${selected.length}/${count}. Relaxing criteria...`);
+    console.log(`⚠️  Only selected ${selected.length}/${count}. Using random distribution fallback...`);
 
-    // Adiciona números pulados, começando pelos de maior score
-    for (const { num } of skipped) {
-      if (selected.length === count) break;
-      if (!selected.includes(num)) {
-        selected.push(num);
-      }
-    }
+    // Gerar números aleatórios com boa distribuição
+    const randomNumbers = generateRandomWithDistribution(count, selected);
 
-    // Se ainda falta, pega qualquer candidato restante
-    if (selected.length < count) {
-      for (const candidate of sorted) {
-        if (selected.length === count) break;
-        if (!selected.includes(candidate.number)) {
-          selected.push(candidate.number);
-        }
-      }
-    }
+    // Substituir seleção parcial por números aleatórios bem distribuídos
+    selected.length = 0; // Limpar
+    selected.push(...randomNumbers);
+
+    console.log(`   ✅ Generated ${count} numbers with forced distribution`);
   }
 
   // Ordena resultado
