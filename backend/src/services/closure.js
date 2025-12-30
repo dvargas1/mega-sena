@@ -4,6 +4,7 @@ import { getBolaoFinancials } from './betLevel.js';
 import { generateClosureHash } from '../utils/hash.js';
 import { getScores } from './scoring.js';
 import { generateWeightedRandomNumbers } from '../utils/weightedRandom.js';
+import { selectBestNumbers, validateSelection } from '../utils/numberSelection.js';
 
 /**
  * Consolidate final numbers based on user votes and scores
@@ -64,8 +65,26 @@ export async function consolidateFinalNumbers(bolaoId, targetCount) {
       return b.score - a.score; // Higher score first (tiebreaker)
     });
 
-    // Take top N numbers
-    const selected = ranked.slice(0, targetCount).map(r => r.number).sort((a, b) => a - b);
+    // Get larger pool of candidates (3x the target)
+    const poolSize = Math.min(targetCount * 3, 60);
+    const candidatePool = ranked.slice(0, poolSize);
+
+    console.log(`🎲 Democratic consolidation: selecting ${targetCount} from top ${candidatePool.length} candidates`);
+
+    // Use intelligent selector
+    const selected = selectBestNumbers(candidatePool, targetCount, {
+      strictness: 'medium',
+      minQualityScore: 60
+    });
+
+    // Validate result
+    const validation = validateSelection(selected);
+    console.log(`📊 Final selection quality: ${validation.quality}/100`);
+    if (validation.issues.length > 0) {
+      validation.issues.forEach(issue => {
+        console.log(`   ⚠️  ${issue.severity.toUpperCase()}: ${issue.message}`);
+      });
+    }
 
     return selected;
   } catch (error) {
@@ -222,17 +241,30 @@ export async function closeBolao(bolaoId, adminUserId) {
               availableNumbers = Array.from({ length: 60 }, (_, i) => i + 1);
             }
 
+            // Get larger pool (3x the target)
+            const poolSize = Math.min(betInfo.numbers * 3, availableNumbers.length);
+
             const { data: scores } = await supabase
               .from('number_scores')
               .select('number, final_score')
               .eq('bolao_id', bolaoId)
               .in('number', availableNumbers)
               .order('final_score', { ascending: false })
-              .limit(betInfo.numbers);
+              .limit(poolSize);
 
             if (scores && scores.length >= betInfo.numbers) {
-              numbers = scores.map(s => s.number).sort((a, b) => a - b);
-              console.log(`   Bet ${i + 1}/${betInfo.count} (score-based): ${numbers.join(', ')}`);
+              // Use intelligent selector
+              const candidates = scores.map(s => ({
+                number: s.number,
+                score: s.final_score
+              }));
+
+              numbers = selectBestNumbers(candidates, betInfo.numbers, {
+                strictness: 'medium',
+                minQualityScore: 50
+              });
+
+              console.log(`   Bet ${i + 1}/${betInfo.count} (smart score-based): ${numbers.join(', ')}`);
             } else {
               // Fallback to weighted random
               const scoresData = await getScores(bolaoId, false);
@@ -257,17 +289,30 @@ export async function closeBolao(bolaoId, adminUserId) {
             availableNumbers = Array.from({ length: 60 }, (_, i) => i + 1);
           }
 
+          // Get larger pool (18 números = 3x)
+          const poolSize = Math.min(18, availableNumbers.length);
+
           const { data: scores } = await supabase
             .from('number_scores')
             .select('number, final_score')
             .eq('bolao_id', bolaoId)
             .in('number', availableNumbers)
             .order('final_score', { ascending: false })
-            .limit(6);
+            .limit(poolSize);
 
           if (scores && scores.length >= 6) {
-            numbers = scores.map(s => s.number).sort((a, b) => a - b);
-            console.log(`   Bet ${i + 1}/${betInfo.count}: ${numbers.join(', ')}`);
+            // Use intelligent selector
+            const candidates = scores.map(s => ({
+              number: s.number,
+              score: s.final_score
+            }));
+
+            numbers = selectBestNumbers(candidates, 6, {
+              strictness: 'medium',
+              minQualityScore: 50
+            });
+
+            console.log(`   Bet ${i + 1}/${betInfo.count} (smart): ${numbers.join(', ')}`);
           } else {
             // Fallback to weighted random
             const scoresData = await getScores(bolaoId, false);
@@ -286,12 +331,35 @@ export async function closeBolao(bolaoId, adminUserId) {
           cost: betInfo.cost
         });
 
+        // Validate and log quality
+        const betValidation = validateSelection(numbers);
+        console.log(`   📊 Quality: ${betValidation.quality}/100`);
+        if (betValidation.issues.length > 0) {
+          betValidation.issues.forEach(issue => {
+            const emoji = issue.severity === 'high' ? '🔴' : issue.severity === 'medium' ? '🟡' : '🟢';
+            console.log(`      ${emoji} ${issue.message}`);
+          });
+        }
+
         // Mark numbers as used
         numbers.forEach(n => usedNumbers.add(n));
       }
     }
 
     console.log(`\n✅ Generated ${finalBetsArray.length} total bets (optimized from ${financials.totalBets})`);
+
+    // Aggregate quality analysis
+    console.log('\n📊 QUALITY ANALYSIS:');
+    const qualityScores = finalBetsArray.map(bet => validateSelection(bet.numbers).quality);
+    const avgQuality = qualityScores.reduce((sum, q) => sum + q, 0) / qualityScores.length;
+    const highQualityBets = qualityScores.filter(q => q >= 80).length;
+    const mediumQualityBets = qualityScores.filter(q => q >= 60 && q < 80).length;
+    const lowQualityBets = qualityScores.filter(q => q < 60).length;
+
+    console.log(`   Average quality: ${Math.round(avgQuality)}/100`);
+    console.log(`   High quality bets (≥80): ${highQualityBets}/${finalBetsArray.length}`);
+    console.log(`   Medium quality bets (60-79): ${mediumQualityBets}/${finalBetsArray.length}`);
+    console.log(`   Low quality bets (<60): ${lowQualityBets}/${finalBetsArray.length}`);
 
     // 6. Create closure data
     const closureData = {
